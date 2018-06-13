@@ -1,0 +1,57 @@
+- name: Verify Ansible meets version requirements.
+  assert:
+    that: "ansible_version.full | version_compare('2.5.4', '>=')"
+    msg: >
+      "You must update Ansible to at least 2.5.4 to deploy."
+
+- name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules, required by ansible"
+  raw: apt-get install python-minimal aptitude -y
+  become: true
+  become_user: root
+  become_method: sudo
+
+- name: add nginx ppa
+  become: yes
+  apt_repository: repo='ppa:nginx/stable' update_cache=yes
+
+- name: check last time apt was updated
+  stat: path=/var/lib/apt/periodic/update-success-stamp
+  register: apt_update_details
+
+- name: update apt caches
+  become: yes
+  # Is the time apt was last updated < the current time - 24 hours?
+  when: "apt_update_details.stat.mtime < ansible_date_time.epoch|int  - (60 * 60 * 24)"
+  apt: update_cache=yes
+
+#
+#- name: Upgrade APT to the latest safe packages
+#  apt: upgrade=safe
+
+- name: Install required packages
+  apt: state=installed name={{ item }}
+  with_items: "{{ ubuntu_common_required_packages }}"
+
+- name: Set timezone to UTC
+  timezone:
+    name: UTC
+
+- name: ensure /var/log/nginx is world readable
+  file: path=/var/log/nginx mode=0755
+
+- name: ensure nginx is enabled
+  service: name=nginx state=started enabled=yes
+  become: yes
+  become_user: root
+
+- name: truncate default nginx conf
+  copy: dest=/etc/nginx/sites-enabled/default content='' force=yes
+
+# This has to come after all the other nginx config so that it can validate it all.
+- name: ensure nginx conf exists and all config is valid
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    validate: "nginx -t -c %s"
+  become: yes
+  become_user: root

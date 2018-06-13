@@ -1,0 +1,25 @@
+{
+  "min_packer_version": "1.2.3",
+  "builders": [
+    {
+      "type": "googlecompute",
+      "ssh_username": "packer",
+      "project_id": "<YOUR_PROJECT_ID>",
+      "source_image": "ubuntu-1604-xenial-v20180522",
+      "zone": "us-central1-f",
+      "image_family": "repro-image",
+      "image_name": "repro-bug-{{isotime | clean_image_name}}",
+      "disk_type": "pd-ssd"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "ansible",
+      "playbook_file": "./repro-image-playbook.yml",
+      "extra_arguments": [
+        "--ssh-extra-args",
+        "-o IdentitiesOnly=yes"
+      ]
+    }
+  ]
+}
